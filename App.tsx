@@ -268,7 +268,7 @@ function App() {
     }
   };
 
-  const handleAddBooking = () => {
+  const handleSaveBooking = () => {
     if (!bookingCustomerId || bookingCart.length === 0 || !bookingDates.start || !bookingDates.end) return;
     
     const cust = customers.find(c => c.id === bookingCustomerId);
@@ -276,6 +276,7 @@ function App() {
 
     const days = calculateDays(bookingDates.start, bookingDates.end);
     
+    // Prepare items data
     const items: BookingItem[] = bookingCart.map(eq => ({
       equipmentId: eq.id,
       equipmentName: eq.name,
@@ -283,44 +284,157 @@ function App() {
       days: days,
       total: eq.dailyRate * days
     }));
-
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 
-    const newBooking: Booking = {
-      id: `B-${Math.floor(Math.random() * 10000)}`,
-      customerId: cust.id,
-      customerName: cust.name,
-      items,
-      startDate: bookingDates.start,
-      endDate: bookingDates.end,
-      totalAmount,
-      paidAmount: 0,
-      deposit: 0,
-      status: BookingStatus.Active,
-      createdAt: new Date().toISOString().split('T')[0]
-    };
+    // --- UPDATE EXISTING BOOKING ---
+    if (editingId) {
+       const oldBooking = bookings.find(b => b.id === editingId);
+       if (oldBooking) {
+         // 1. Revert old equipment to Available
+         const oldItemIds = oldBooking.items.map(i => i.equipmentId);
+         
+         // 2. Update booking data
+         setBookings(prev => prev.map(b => {
+            if (b.id === editingId) {
+               return {
+                  ...b,
+                  customerId: cust.id,
+                  customerName: cust.name,
+                  items,
+                  startDate: bookingDates.start,
+                  endDate: bookingDates.end,
+                  totalAmount
+               };
+            }
+            return b;
+         }));
 
-    setBookings(prev => [newBooking, ...prev]);
-    const eqIds = items.map(i => i.equipmentId);
-    setEquipment(prev => prev.map(e => eqIds.includes(e.id) ? { ...e, status: EquipmentStatus.Rented } : e));
+         // 3. Update Equipment Statuses (Revert old, Set new to Rented)
+         const newItemIds = items.map(i => i.equipmentId);
+         setEquipment(prev => prev.map(e => {
+            // If it was in old booking but NOT in new booking -> Make Available
+            if (oldItemIds.includes(e.id) && !newItemIds.includes(e.id)) {
+               return { ...e, status: EquipmentStatus.Available };
+            }
+            // If it is in new booking -> Make Rented
+            if (newItemIds.includes(e.id)) {
+               return { ...e, status: EquipmentStatus.Rented };
+            }
+            return e;
+         }));
 
-    const newTransaction: Transaction = {
-      id: `T-${Math.floor(Math.random() * 10000)}`,
-      customerId: cust.id,
-      bookingId: newBooking.id,
-      date: new Date().toISOString().split('T')[0],
-      amount: -totalAmount,
-      type: 'Invoice',
-      description: `حجز جديد رقم ${newBooking.id} (بواسطة ${currentUser?.name})`
-    };
-    setTransactions(prev => [newTransaction, ...prev]);
-    setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, balance: c.balance + totalAmount } : c));
+         // 4. Update Transaction (Find the Invoice type and update amount)
+         // Note: In a real system, we might create a Credit Note or Adjustment, but here we update the Invoice.
+         setTransactions(prev => prev.map(t => {
+            if (t.bookingId === editingId && t.type === 'Invoice') {
+               return { ...t, amount: -totalAmount };
+            }
+            return t;
+         }));
+
+         // 5. Update Customer Balance (Remove old amount, add new amount)
+         setCustomers(prev => prev.map(c => {
+             if (c.id === cust.id) {
+                // Determine if customer changed (rare but possible) or same customer
+                const oldAmount = oldBooking.totalAmount;
+                // If same customer, just adjust diff
+                // Simplified: recalculate balance based on transaction history would be better, but for now:
+                return { ...c, balance: c.balance - oldAmount + totalAmount };
+             }
+             return c;
+         }));
+       }
+    } 
+    // --- CREATE NEW BOOKING ---
+    else {
+      const newBooking: Booking = {
+        id: `B-${Math.floor(Math.random() * 10000)}`,
+        customerId: cust.id,
+        customerName: cust.name,
+        items,
+        startDate: bookingDates.start,
+        endDate: bookingDates.end,
+        totalAmount,
+        paidAmount: 0,
+        deposit: 0,
+        status: BookingStatus.Active,
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+
+      setBookings(prev => [newBooking, ...prev]);
+      const eqIds = items.map(i => i.equipmentId);
+      setEquipment(prev => prev.map(e => eqIds.includes(e.id) ? { ...e, status: EquipmentStatus.Rented } : e));
+
+      const newTransaction: Transaction = {
+        id: `T-${Math.floor(Math.random() * 10000)}`,
+        customerId: cust.id,
+        bookingId: newBooking.id,
+        date: new Date().toISOString().split('T')[0],
+        amount: -totalAmount,
+        type: 'Invoice',
+        description: `حجز جديد رقم ${newBooking.id} (بواسطة ${currentUser?.name})`
+      };
+      setTransactions(prev => [newTransaction, ...prev]);
+      setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, balance: c.balance + totalAmount } : c));
+    }
 
     setIsModalOpen(false);
     setBookingCart([]);
     setBookingCustomerId('');
     setBookingCategoryFilter('all');
     setBookingSearchTerm('');
+    setEditingId(null);
+  };
+
+  const handleEditBooking = (booking: Booking) => {
+     if (booking.status === BookingStatus.Completed) {
+        alert('لا يمكن تعديل حجز مكتمل.');
+        return;
+     }
+     
+     // 1. Set Modal State
+     setEditingId(booking.id);
+     setModalType('addBooking');
+     
+     // 2. Populate Form
+     setBookingCustomerId(booking.customerId);
+     setBookingDates({ start: booking.startDate, end: booking.endDate });
+     
+     // 3. Populate Cart
+     // Find the actual equipment objects based on IDs stored in booking items
+     const bookedEquipmentIds = booking.items.map(i => i.equipmentId);
+     const cartItems = equipment.filter(e => bookedEquipmentIds.includes(e.id));
+     setBookingCart(cartItems);
+
+     setIsModalOpen(true);
+  };
+
+  const handleDeleteBooking = (id: string) => {
+    // Only Admin
+    if (currentUser?.role !== UserRole.Admin) {
+       alert('عذراً، حذف الحجوزات للمدراء فقط.');
+       return;
+    }
+
+    if (window.confirm('هل أنت متأكد من حذف هذا الحجز؟ سيتم إعادة حالة المعدات إلى "متاحة" وحذف المعاملات المالية المرتبطة.')) {
+       const booking = bookings.find(b => b.id === id);
+       if (!booking) return;
+
+       // 1. Revert Equipment Status
+       const itemIds = booking.items.map(i => i.equipmentId);
+       setEquipment(prev => prev.map(e => itemIds.includes(e.id) ? { ...e, status: EquipmentStatus.Available } : e));
+
+       // 2. Remove Booking
+       setBookings(prev => prev.filter(b => b.id !== id));
+
+       // 3. Remove Transaction and Revert Customer Balance
+       const invoice = transactions.find(t => t.bookingId === id && t.type === 'Invoice');
+       if (invoice) {
+          const amount = Math.abs(invoice.amount);
+          setCustomers(prev => prev.map(c => c.id === booking.customerId ? { ...c, balance: c.balance - amount } : c));
+          setTransactions(prev => prev.filter(t => t.bookingId !== id));
+       }
+    }
   };
 
   const addToCart = (item: Equipment) => {
@@ -759,7 +873,8 @@ function App() {
                     setBookingCart([]); 
                     setBookingCustomerId(''); 
                     setBookingDates({start: '', end: ''}); 
-                    setModalType('addBooking'); 
+                    setModalType('addBooking');
+                    setEditingId(null);
                     setIsModalOpen(true); 
                  }}
                  className="bg-black text-white hover:bg-zinc-800 font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
@@ -807,13 +922,27 @@ function App() {
                                 {booking.status}
                              </span>
                           </td>
-                          <td className="p-4">
+                          <td className="p-4 flex items-center gap-2">
                              {booking.status === BookingStatus.Active && (
                                 <button 
                                    onClick={() => handleReturnEquipment(booking.id)}
                                    className="text-xs bg-black text-white px-3 py-1 rounded hover:bg-zinc-800 transition-colors"
                                 >
                                    إرجاع
+                                </button>
+                             )}
+                             <button 
+                               onClick={() => handleEditBooking(booking)}
+                               className="text-zinc-600 hover:text-zinc-900 bg-zinc-100 p-1.5 rounded-md"
+                             >
+                               <Pencil size={16} />
+                             </button>
+                             {currentUser?.role === UserRole.Admin && (
+                                <button 
+                                  onClick={() => handleDeleteBooking(booking.id)}
+                                  className="text-red-500 hover:text-red-700 bg-red-50 p-1.5 rounded-md"
+                                >
+                                  <Trash2 size={16} />
                                 </button>
                              )}
                           </td>
@@ -1029,7 +1158,7 @@ function App() {
     const bookingDays = (bookingDates.start && bookingDates.end) ? calculateDays(bookingDates.start, bookingDates.end) : 0;
     const bookingTotal = bookingCart.reduce((acc, eq) => acc + (eq.dailyRate * bookingDays), 0);
     const filteredBookingEquipment = equipment
-      .filter(e => e.status === EquipmentStatus.Available)
+      .filter(e => e.status === EquipmentStatus.Available || (editingId && bookingCart.find(bc => bc.id === e.id))) // Show available OR items already in cart (for editing)
       .filter(e => bookingCategoryFilter === 'all' || e.category === bookingCategoryFilter)
       .filter(e => e.name.toLowerCase().includes(bookingSearchTerm.toLowerCase()));
 
@@ -1042,7 +1171,7 @@ function App() {
               {modalType === 'editCustomer' && 'تعديل بيانات الشريك'}
               {modalType === 'addEquipment' && `إضافة ${settings.itemName} جديدة`}
               {modalType === 'editEquipment' && `تعديل بيانات ال${settings.itemName}`}
-              {modalType === 'addBooking' && 'حجز جديد (نقطة بيع)'}
+              {modalType === 'addBooking' && (editingId ? 'تعديل الحجز' : 'حجز جديد (نقطة بيع)')}
               {modalType === 'addPayment' && 'تسجيل دفعة'}
               {modalType === 'manageCategories' && `إدارة ${settings.categoryLabel}`}
               {modalType === 'addUser' && 'إضافة مستخدم جديد'}
@@ -1341,12 +1470,14 @@ function App() {
                              <label className="text-xs font-bold text-zinc-500 mb-1 block">من</label>
                              <input type="date" className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm text-zinc-900"
                                onChange={(e) => setBookingDates({...bookingDates, start: e.target.value})}
+                               value={bookingDates.start}
                              />
                           </div>
                           <div>
                              <label className="text-xs font-bold text-zinc-500 mb-1 block">إلى</label>
                              <input type="date" className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm text-zinc-900"
                                onChange={(e) => setBookingDates({...bookingDates, end: e.target.value})}
+                               value={bookingDates.end}
                              />
                           </div>
                        </div>
@@ -1392,10 +1523,10 @@ function App() {
                        </div>
                        <button 
                           disabled={!bookingCustomerId || bookingCart.length === 0 || bookingDays <= 0}
-                          onClick={handleAddBooking}
+                          onClick={handleSaveBooking}
                           className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:bg-zinc-300 disabled:text-zinc-500 text-black py-3 rounded-xl font-bold shadow-lg shadow-yellow-500/20 transition-all flex justify-center items-center gap-2"
                        >
-                          <Save size={18} /> تأكيد الحجز
+                          <Save size={18} /> {editingId ? 'حفظ التعديلات' : 'تأكيد الحجز'}
                        </button>
                     </div>
                  </div>
