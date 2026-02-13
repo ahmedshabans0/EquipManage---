@@ -1,5 +1,5 @@
 
-import { Customer, Equipment, Booking, Transaction, CustomerStatus, EquipmentType, EquipmentStatus, BookingStatus } from './types';
+import { Customer, Equipment, Booking, Transaction, CustomerStatus, EquipmentType, EquipmentStatus, BookingStatus, User, UserRole } from './types';
 
 export const EQUIPMENT_CATEGORIES = [
   'معدات ثقيلة',
@@ -10,6 +10,27 @@ export const EQUIPMENT_CATEGORIES = [
   'سقالات',
   'عدد يدوية',
   'أخرى'
+];
+
+export const INITIAL_USERS: User[] = [
+  {
+    id: 'U-001',
+    name: 'المدير العام',
+    username: 'admin',
+    password: '123',
+    role: UserRole.Admin,
+    active: true,
+    phone: '0500000000'
+  },
+  {
+    id: 'U-002',
+    name: 'موظف المبيعات',
+    username: 'user',
+    password: '123',
+    role: UserRole.Employee,
+    active: true,
+    phone: '0599999999'
+  }
 ];
 
 export const INITIAL_CUSTOMERS: Customer[] = [

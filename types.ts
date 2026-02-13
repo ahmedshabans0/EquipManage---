@@ -5,6 +5,11 @@ export enum CustomerStatus {
   Blacklisted = 'محظور',
 }
 
+export enum UserRole {
+  Admin = 'مدير النظام',
+  Employee = 'موظف',
+}
+
 export enum EquipmentType {
   Owned = 'مملوكة',
   External = 'خارجية',
@@ -37,6 +42,16 @@ export interface SystemSettings {
   categoryLabel: string;  // e.g., "التصنيف", "الفئة"
   identifierLabel: string;// e.g., "الرقم التسلسلي", "رقم اللوحة"
   currency: string;       // e.g., "ر.س", "USD", "ج.م"
+}
+
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  password?: string; // In a real app, this would be hashed
+  role: UserRole;
+  phone?: string;
+  active: boolean;
 }
 
 export interface Customer {
