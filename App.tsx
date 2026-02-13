@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
-import { LayoutDashboard, Users, Truck, CalendarDays, Plus, Search, X, DollarSign, Pencil, Trash2, Building2, UserCircle, Settings, Save, Camera } from 'lucide-react';
+import { LayoutDashboard, Users, Truck, CalendarDays, Plus, Search, X, DollarSign, Pencil, Trash2, Building2, UserCircle, Settings, Save, Camera, ShoppingCart, Calendar, Minus } from 'lucide-react';
 import { 
   Customer, Equipment, Booking, Transaction, 
   CustomerStatus, EquipmentType, EquipmentStatus, BookingStatus, PaymentMethod, BookingItem, SystemSettings 
@@ -44,10 +44,11 @@ function App() {
   const [equipmentCategoryFilter, setEquipmentCategoryFilter] = useState('all');
 
   // Booking Modal State
-  const [bookingCart, setBookingCart] = useState<{eq: Equipment, days: number}[]>([]);
+  const [bookingCart, setBookingCart] = useState<Equipment[]>([]); // Changed to store just Equipment, days calc on fly
   const [bookingCustomerId, setBookingCustomerId] = useState('');
   const [bookingDates, setBookingDates] = useState({start: '', end: ''});
-  const [bookingCategoryFilter, setBookingCategoryFilter] = useState(''); 
+  const [bookingCategoryFilter, setBookingCategoryFilter] = useState('all'); // Changed default
+  const [bookingSearchTerm, setBookingSearchTerm] = useState(''); // New state for modal search
 
   // --- Actions ---
 
@@ -61,7 +62,7 @@ function App() {
     if (window.confirm(`هل أنت متأكد من حذف تصنيف "${category}"؟`)) {
       setCategories(categories.filter(c => c !== category));
       if (equipmentCategoryFilter === category) setEquipmentCategoryFilter('all');
-      if (bookingCategoryFilter === category) setBookingCategoryFilter('');
+      if (bookingCategoryFilter === category) setBookingCategoryFilter('all');
     }
   };
 
@@ -183,17 +184,19 @@ function App() {
   };
 
   const handleAddBooking = () => {
-    if (!bookingCustomerId || bookingCart.length === 0 || !bookingDates.start) return;
+    if (!bookingCustomerId || bookingCart.length === 0 || !bookingDates.start || !bookingDates.end) return;
     
     const cust = customers.find(c => c.id === bookingCustomerId);
     if (!cust) return;
 
-    const items: BookingItem[] = bookingCart.map(item => ({
-      equipmentId: item.eq.id,
-      equipmentName: item.eq.name,
-      dailyRate: item.eq.type === EquipmentType.External ? (item.eq.dailyRate) : item.eq.dailyRate,
-      days: item.days,
-      total: item.eq.dailyRate * item.days
+    const days = calculateDays(bookingDates.start, bookingDates.end);
+    
+    const items: BookingItem[] = bookingCart.map(eq => ({
+      equipmentId: eq.id,
+      equipmentName: eq.name,
+      dailyRate: eq.dailyRate,
+      days: days,
+      total: eq.dailyRate * days
     }));
 
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
@@ -231,7 +234,18 @@ function App() {
     setIsModalOpen(false);
     setBookingCart([]);
     setBookingCustomerId('');
-    setBookingCategoryFilter('');
+    setBookingCategoryFilter('all');
+    setBookingSearchTerm('');
+  };
+
+  const addToCart = (item: Equipment) => {
+    if (!bookingCart.find(i => i.id === item.id)) {
+      setBookingCart([...bookingCart, item]);
+    }
+  };
+
+  const removeFromCart = (itemId: string) => {
+    setBookingCart(bookingCart.filter(i => i.id !== itemId));
   };
 
   const handleAddPayment = (amount: number, method: PaymentMethod) => {
@@ -905,26 +919,34 @@ function App() {
 
     const editingCustomer = modalType === 'editCustomer' && editingId ? customers.find(c => c.id === editingId) : null;
     const editingEquipment = modalType === 'editEquipment' && editingId ? equipment.find(e => e.id === editingId) : null;
+    
+    // Booking specific variables
+    const bookingDays = (bookingDates.start && bookingDates.end) ? calculateDays(bookingDates.start, bookingDates.end) : 0;
+    const bookingTotal = bookingCart.reduce((acc, eq) => acc + (eq.dailyRate * bookingDays), 0);
+    const filteredBookingEquipment = equipment
+      .filter(e => e.status === EquipmentStatus.Available)
+      .filter(e => bookingCategoryFilter === 'all' || e.category === bookingCategoryFilter)
+      .filter(e => e.name.toLowerCase().includes(bookingSearchTerm.toLowerCase()));
 
     return (
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-zinc-100 flex justify-between items-center sticky top-0 bg-white">
+        <div className={`bg-white rounded-2xl shadow-xl w-full ${modalType === 'addBooking' ? 'max-w-6xl h-[85vh]' : 'max-w-2xl max-h-[90vh]'} overflow-hidden flex flex-col`}>
+          <div className="p-6 border-b border-zinc-100 flex justify-between items-center bg-white shrink-0">
             <h3 className="text-xl font-bold text-zinc-800">
               {modalType === 'addCustomer' && 'إضافة شريك جديد'}
               {modalType === 'editCustomer' && 'تعديل بيانات الشريك'}
               {modalType === 'addEquipment' && `إضافة ${settings.itemName} جديدة`}
               {modalType === 'editEquipment' && `تعديل بيانات ال${settings.itemName}`}
-              {modalType === 'addBooking' && 'حجز جديد'}
+              {modalType === 'addBooking' && 'حجز جديد (نقطة بيع)'}
               {modalType === 'addPayment' && 'تسجيل دفعة'}
               {modalType === 'manageCategories' && `إدارة ${settings.categoryLabel}`}
             </h3>
-            <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-100 rounded-full">
-              <X size={20} />
+            <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-100 rounded-full text-zinc-500">
+              <X size={24} />
             </button>
           </div>
           
-          <div className="p-6">
+          <div className="flex-1 overflow-y-auto p-6 bg-zinc-50">
             {modalType === 'manageCategories' && (
               <div className="space-y-6">
                  <div className="flex gap-2">
@@ -1066,106 +1088,160 @@ function App() {
             )}
 
             {modalType === 'addBooking' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-zinc-700">العميل</label>
-                    <select 
-                      className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-yellow-500 outline-none text-zinc-900 bg-white" 
-                      value={bookingCustomerId}
-                      onChange={(e) => setBookingCustomerId(e.target.value)}
-                    >
-                      <option value="">اختر العميل...</option>
-                      {customers.filter(c => c.type === 'client').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-sm font-medium text-zinc-700">من</label>
-                      <input type="date" className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-yellow-500 outline-none text-zinc-900 bg-white" 
-                        onChange={(e) => setBookingDates({...bookingDates, start: e.target.value})}
-                      />
+              <div className="flex flex-col lg:flex-row h-full gap-6">
+                 {/* Right Side: Item Selector */}
+                 <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+                    {/* Search & Filters */}
+                    <div className="flex gap-2 bg-white p-3 rounded-xl border border-zinc-200 shrink-0">
+                       <div className="relative flex-1">
+                          <Search className="absolute right-3 top-3 text-zinc-400" size={18} />
+                          <input 
+                             placeholder="بحث عن المنتجات..." 
+                             className="w-full pl-4 pr-10 py-2 bg-zinc-50 border rounded-lg outline-none focus:ring-2 focus:ring-yellow-500"
+                             value={bookingSearchTerm}
+                             onChange={(e) => setBookingSearchTerm(e.target.value)}
+                          />
+                       </div>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium text-zinc-700">إلى</label>
-                      <input type="date" className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-yellow-500 outline-none text-zinc-900 bg-white" 
-                        onChange={(e) => setBookingDates({...bookingDates, end: e.target.value})}
-                      />
+                    
+                    {/* Categories Pills */}
+                    <div className="flex gap-2 overflow-x-auto pb-2 shrink-0 no-scrollbar">
+                       <button 
+                          onClick={() => setBookingCategoryFilter('all')}
+                          className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all ${bookingCategoryFilter === 'all' ? 'bg-black text-white shadow-md' : 'bg-white border text-zinc-600 hover:bg-zinc-100'}`}
+                       >
+                          الكل
+                       </button>
+                       {categories.map(cat => (
+                         <button 
+                            key={cat}
+                            onClick={() => setBookingCategoryFilter(cat)}
+                            className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all ${bookingCategoryFilter === cat ? 'bg-black text-white shadow-md' : 'bg-white border text-zinc-600 hover:bg-zinc-100'}`}
+                         >
+                            {cat}
+                         </button>
+                       ))}
                     </div>
-                  </div>
-                </div>
 
-                <div className="border-t border-zinc-100 pt-4">
-                   <h4 className="font-bold mb-2 text-zinc-800">إضافة {settings.itemsName}</h4>
-                   
-                   <div className="mb-2">
-                      <select 
-                        className="w-full border p-2 rounded focus:ring-2 focus:ring-yellow-500 outline-none bg-zinc-50 text-zinc-900"
-                        value={bookingCategoryFilter}
-                        onChange={(e) => setBookingCategoryFilter(e.target.value)}
-                      >
-                         <option value="">-- أولاً: اختر {settings.categoryLabel} --</option>
-                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                      </select>
-                   </div>
-
-                   <div className="flex gap-2">
-                      <select 
-                        id="eqSelect" 
-                        disabled={!bookingCategoryFilter}
-                        className="flex-1 border p-2 rounded focus:ring-2 focus:ring-yellow-500 outline-none disabled:bg-zinc-100 disabled:text-zinc-400 text-zinc-900 bg-white"
-                      >
-                        <option value="">
-                          {bookingCategoryFilter ? `اختر ال${settings.itemName}...` : `يرجى اختيار ال${settings.categoryLabel} أولاً`}
-                        </option>
-                        {equipment
-                          .filter(e => e.status === EquipmentStatus.Available)
-                          .filter(e => !bookingCategoryFilter || e.category === bookingCategoryFilter)
-                          .map(e => (
-                          <option key={e.id} value={e.id}>{e.name} - {e.dailyRate} {settings.currency}/يوم</option>
-                        ))}
-                      </select>
-                      <button 
-                        disabled={!bookingCategoryFilter}
-                        onClick={() => {
-                          const select = document.getElementById('eqSelect') as HTMLSelectElement;
-                          const eqId = select.value;
-                          if(!eqId || !bookingDates.start || !bookingDates.end) return;
-                          const eq = equipment.find(e => e.id === eqId);
-                          const days = calculateDays(bookingDates.start, bookingDates.end);
-                          if(eq) setBookingCart([...bookingCart, {eq, days}]);
-                        }}
-                        className="bg-black text-white px-4 rounded hover:bg-zinc-800 transition-colors disabled:bg-zinc-300"
-                      >
-                        <Plus />
-                      </button>
-                   </div>
-                </div>
-
-                {bookingCart.length > 0 && (
-                  <div className="bg-zinc-50 p-4 rounded-lg space-y-2">
-                    {bookingCart.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-sm border-b border-zinc-200 pb-2 last:border-0">
-                         <span className="text-zinc-700">{item.eq.name} <span className="text-xs text-zinc-500">({item.days} يوم)</span></span>
-                         <span className="font-bold">{(item.eq.dailyRate * item.days).toLocaleString()} {settings.currency}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between items-center pt-2 font-bold text-lg border-t border-zinc-200">
-                      <span>الإجمالي</span>
-                      <span className="text-yellow-600">
-                        {bookingCart.reduce((acc, item) => acc + (item.eq.dailyRate * item.days), 0).toLocaleString()} {settings.currency}
-                      </span>
+                    {/* Grid */}
+                    <div className="flex-1 overflow-y-auto pr-1">
+                       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                          {filteredBookingEquipment.map(item => {
+                            const isAdded = bookingCart.find(i => i.id === item.id);
+                            return (
+                              <div key={item.id} className={`bg-white rounded-xl border transition-all overflow-hidden flex flex-col ${isAdded ? 'border-yellow-500 ring-1 ring-yellow-500' : 'border-zinc-200 hover:shadow-md'}`}>
+                                 <div className="h-28 bg-zinc-100 relative">
+                                    <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
+                                    {isAdded && (
+                                       <div className="absolute inset-0 bg-yellow-500/20 flex items-center justify-center">
+                                          <div className="bg-yellow-500 text-white rounded-full p-1"><Plus /></div>
+                                       </div>
+                                    )}
+                                 </div>
+                                 <div className="p-3 flex-1 flex flex-col">
+                                    <h4 className="font-bold text-sm text-zinc-800 line-clamp-1">{item.name}</h4>
+                                    <p className="text-xs text-zinc-500 mb-2">{item.category}</p>
+                                    <div className="mt-auto flex items-center justify-between">
+                                       <span className="font-bold text-emerald-600 text-sm">{item.dailyRate} <span className="text-[10px] text-zinc-400">{settings.currency}</span></span>
+                                       <button 
+                                          onClick={() => isAdded ? removeFromCart(item.id) : addToCart(item)}
+                                          className={`p-1.5 rounded-lg transition-colors ${isAdded ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-black text-white hover:bg-zinc-800'}`}
+                                       >
+                                          {isAdded ? <Minus size={16}/> : <Plus size={16} />}
+                                       </button>
+                                    </div>
+                                 </div>
+                              </div>
+                            );
+                          })}
+                       </div>
                     </div>
-                  </div>
-                )}
+                 </div>
 
-                <button 
-                   disabled={!bookingCustomerId || bookingCart.length === 0}
-                   onClick={handleAddBooking}
-                   className="w-full bg-yellow-500 disabled:bg-zinc-300 disabled:text-zinc-500 text-black py-3 rounded-lg font-bold hover:bg-yellow-600 transition-colors"
-                >
-                  إنشاء الحجز
-                </button>
+                 {/* Left Side: Cart & Details */}
+                 <div className="w-full lg:w-96 bg-white border border-zinc-200 rounded-xl flex flex-col shrink-0">
+                    <div className="p-4 border-b border-zinc-100 bg-zinc-50 rounded-t-xl">
+                       <h4 className="font-bold text-lg flex items-center gap-2">
+                          <ShoppingCart size={20} /> تفاصيل الحجز
+                       </h4>
+                    </div>
+                    
+                    <div className="p-4 space-y-4 border-b border-zinc-100">
+                       <div>
+                          <label className="text-xs font-bold text-zinc-500 mb-1 block">العميل</label>
+                          <select 
+                            className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm"
+                            value={bookingCustomerId}
+                            onChange={(e) => setBookingCustomerId(e.target.value)}
+                          >
+                            <option value="">اختر العميل...</option>
+                            {customers.filter(c => c.type === 'client').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                       </div>
+                       
+                       <div className="grid grid-cols-2 gap-2">
+                          <div>
+                             <label className="text-xs font-bold text-zinc-500 mb-1 block">من</label>
+                             <input type="date" className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm"
+                               onChange={(e) => setBookingDates({...bookingDates, start: e.target.value})}
+                             />
+                          </div>
+                          <div>
+                             <label className="text-xs font-bold text-zinc-500 mb-1 block">إلى</label>
+                             <input type="date" className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm"
+                               onChange={(e) => setBookingDates({...bookingDates, end: e.target.value})}
+                             />
+                          </div>
+                       </div>
+                       
+                       {bookingDays > 0 && (
+                          <div className="bg-blue-50 text-blue-700 px-3 py-2 rounded-lg text-xs font-bold text-center border border-blue-100">
+                             مدة الحجز: {bookingDays} يوم
+                          </div>
+                       )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                       {bookingCart.length === 0 ? (
+                          <div className="h-full flex flex-col items-center justify-center text-zinc-400 opacity-50">
+                             <ShoppingCart size={48} className="mb-2" />
+                             <p>السلة فارغة</p>
+                          </div>
+                       ) : (
+                          bookingCart.map(item => (
+                             <div key={item.id} className="flex gap-3 items-center bg-zinc-50 p-2 rounded-lg border border-zinc-100">
+                                <img src={item.image} className="w-12 h-12 rounded-md object-cover" />
+                                <div className="flex-1">
+                                   <p className="text-sm font-bold text-zinc-800 line-clamp-1">{item.name}</p>
+                                   <p className="text-xs text-zinc-500">{item.dailyRate} × {bookingDays} يوم</p>
+                                </div>
+                                <div className="text-left">
+                                   <p className="font-bold text-sm text-emerald-600">{(item.dailyRate * bookingDays).toLocaleString()}</p>
+                                   <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600 text-xs underline">حذف</button>
+                                </div>
+                             </div>
+                          ))
+                       )}
+                    </div>
+
+                    <div className="p-4 bg-zinc-50 border-t border-zinc-200 rounded-b-xl space-y-3">
+                       <div className="flex justify-between items-center text-sm">
+                          <span className="text-zinc-500">عدد المواد</span>
+                          <span className="font-bold">{bookingCart.length}</span>
+                       </div>
+                       <div className="flex justify-between items-center text-xl font-bold">
+                          <span>الإجمالي</span>
+                          <span className="text-zinc-900">{bookingTotal.toLocaleString()} <span className="text-sm font-normal text-zinc-500">{settings.currency}</span></span>
+                       </div>
+                       <button 
+                          disabled={!bookingCustomerId || bookingCart.length === 0 || bookingDays <= 0}
+                          onClick={handleAddBooking}
+                          className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:bg-zinc-300 disabled:text-zinc-500 text-black py-3 rounded-xl font-bold shadow-lg shadow-yellow-500/20 transition-all flex justify-center items-center gap-2"
+                       >
+                          <Save size={18} /> تأكيد الحجز
+                       </button>
+                    </div>
+                 </div>
               </div>
             )}
           </div>
