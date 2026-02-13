@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Sidebar from './components/Sidebar';
-import { LayoutDashboard, Users, Truck, CalendarDays, Plus, Search, X, DollarSign, Pencil, Trash2, Building2, UserCircle, Settings, Save, Camera, ShoppingCart, Calendar, Minus, Lock, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { LayoutDashboard, Users, Truck, CalendarDays, Plus, Search, X, DollarSign, Pencil, Trash2, Building2, UserCircle, Settings, Save, Camera, ShoppingCart, Calendar, Minus, Lock, ShieldCheck, User as UserIcon, Upload, Image as ImageIcon } from 'lucide-react';
 import { 
   Customer, Equipment, Booking, Transaction, User,
   CustomerStatus, EquipmentType, EquipmentStatus, BookingStatus, PaymentMethod, BookingItem, SystemSettings, UserRole 
@@ -45,6 +45,9 @@ function App() {
   const [modalType, setModalType] = useState<'addCustomer' | 'editCustomer' | 'addEquipment' | 'editEquipment' | 'addBooking' | 'addPayment' | 'returnEquipment' | 'manageCategories' | 'addUser' | 'editUser'>('addCustomer');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Image Upload State
+  const [imagePreview, setImagePreview] = useState<string>('');
   
   // Filters
   const [customerFilterType, setCustomerFilterType] = useState<'all' | 'client' | 'supplier'>('all');
@@ -113,6 +116,17 @@ function App() {
       setCategories(['كاميرات', 'عدسات', 'إضاءة', 'خلفيات', 'صوتيات', 'درون', 'اكسسوارات']);
     }
     alert('تم تطبيق إعدادات النظام بنجاح!');
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSaveUser = (e: React.FormEvent<HTMLFormElement>) => {
@@ -231,6 +245,7 @@ function App() {
             dailyRate: Number(formData.get('dailyRate')),
             supplierName: type === EquipmentType.External ? formData.get('supplierName') as string : undefined,
             supplierCost: type === EquipmentType.External ? Number(formData.get('supplierCost')) : undefined,
+            image: imagePreview || eq.image, // Use new image or keep old one
           };
         }
         return eq;
@@ -249,12 +264,13 @@ function App() {
         dailyRate: Number(formData.get('dailyRate')),
         supplierName: type === EquipmentType.External ? formData.get('supplierName') as string : undefined,
         supplierCost: type === EquipmentType.External ? Number(formData.get('supplierCost')) : undefined,
-        image: `https://picsum.photos/200/200?random=${Math.floor(Math.random() * 100)}`
+        image: imagePreview || `https://picsum.photos/200/200?random=${Math.floor(Math.random() * 100)}`
       };
       setEquipment(prev => [...prev, newEquipment]);
     }
     setIsModalOpen(false);
     setEditingId(null);
+    setImagePreview('');
   };
 
   const handleDeleteEquipment = (id: string) => {
@@ -785,7 +801,7 @@ function App() {
                   />
                </div>
                <button 
-                  onClick={() => { setModalType('addEquipment'); setEditingId(null); setIsModalOpen(true); }}
+                  onClick={() => { setModalType('addEquipment'); setEditingId(null); setIsModalOpen(true); setImagePreview(''); }}
                   className="bg-black text-white hover:bg-zinc-800 font-bold px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors shrink-0"
                 >
                   <Plus size={18} /> إضافة {settings.itemName}
@@ -840,7 +856,7 @@ function App() {
                         <span className="text-xs font-mono text-zinc-400 bg-zinc-50 px-2 py-1 rounded">{item.serialNumber}</span>
                         <div className="flex gap-2">
                            <button 
-                             onClick={() => { setEditingId(item.id); setModalType('editEquipment'); setIsModalOpen(true); }}
+                             onClick={() => { setEditingId(item.id); setModalType('editEquipment'); setIsModalOpen(true); setImagePreview(item.image || ''); }}
                              className="text-zinc-400 hover:text-zinc-600 p-1"
                            >
                              <Pencil size={16} />
@@ -1305,6 +1321,43 @@ function App() {
 
             {(modalType === 'addEquipment' || modalType === 'editEquipment') && (
               <form onSubmit={handleSaveEquipment} className="space-y-4">
+                 
+                 {/* Image Uploader */}
+                 <div className="mb-6">
+                    <label className="block text-sm font-medium text-zinc-700 mb-2">صورة ال{settings.itemName}</label>
+                    <div className="flex items-center gap-4">
+                       <div 
+                         onClick={() => document.getElementById('equipImageInput')?.click()}
+                         className="w-24 h-24 rounded-lg border-2 border-dashed border-zinc-300 flex flex-col items-center justify-center cursor-pointer hover:border-yellow-500 hover:bg-yellow-50 transition-colors relative overflow-hidden bg-white"
+                       >
+                          {imagePreview ? (
+                             <>
+                               <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
+                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                  <Camera className="text-white" size={20} />
+                               </div>
+                             </>
+                          ) : (
+                             <>
+                               <ImageIcon className="text-zinc-400 mb-1" size={24} />
+                               <span className="text-xs text-zinc-500">رفع صورة</span>
+                             </>
+                          )}
+                       </div>
+                       <input 
+                         id="equipImageInput" 
+                         type="file" 
+                         accept="image/*" 
+                         className="hidden" 
+                         onChange={handleImageUpload}
+                       />
+                       <div className="text-xs text-zinc-500">
+                          <p>اضغط لرفع صورة جديدة.</p>
+                          <p>الصيغ المدعومة: JPG, PNG</p>
+                       </div>
+                    </div>
+                 </div>
+
                  <div className="grid grid-cols-2 gap-4">
                    <select name="type" defaultValue={editingEquipment?.type} className="border p-2 rounded w-full bg-white text-zinc-900 focus:ring-2 focus:ring-yellow-500 outline-none" required>
                      <option value={EquipmentType.Owned}>مملوكة</option>
