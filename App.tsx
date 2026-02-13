@@ -1097,7 +1097,7 @@ function App() {
                           <Search className="absolute right-3 top-3 text-zinc-400" size={18} />
                           <input 
                              placeholder="بحث عن المنتجات..." 
-                             className="w-full pl-4 pr-10 py-2 bg-zinc-50 border rounded-lg outline-none focus:ring-2 focus:ring-yellow-500"
+                             className="w-full pl-4 pr-10 py-2 bg-zinc-50 border rounded-lg outline-none focus:ring-2 focus:ring-yellow-500 text-zinc-900"
                              value={bookingSearchTerm}
                              onChange={(e) => setBookingSearchTerm(e.target.value)}
                           />
@@ -1170,7 +1170,7 @@ function App() {
                        <div>
                           <label className="text-xs font-bold text-zinc-500 mb-1 block">العميل</label>
                           <select 
-                            className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm"
+                            className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm text-zinc-900"
                             value={bookingCustomerId}
                             onChange={(e) => setBookingCustomerId(e.target.value)}
                           >
@@ -1182,13 +1182,13 @@ function App() {
                        <div className="grid grid-cols-2 gap-2">
                           <div>
                              <label className="text-xs font-bold text-zinc-500 mb-1 block">من</label>
-                             <input type="date" className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm"
+                             <input type="date" className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm text-zinc-900"
                                onChange={(e) => setBookingDates({...bookingDates, start: e.target.value})}
                              />
                           </div>
                           <div>
                              <label className="text-xs font-bold text-zinc-500 mb-1 block">إلى</label>
-                             <input type="date" className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm"
+                             <input type="date" className="w-full border p-2 rounded-lg bg-zinc-50 focus:ring-2 focus:ring-yellow-500 outline-none text-sm text-zinc-900"
                                onChange={(e) => setBookingDates({...bookingDates, end: e.target.value})}
                              />
                           </div>
