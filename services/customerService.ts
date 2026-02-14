@@ -7,12 +7,16 @@ import { Customer, CustomerStatus } from '../types';
  */
 
 /**
- * Get all customers
+ * Get all customers (excludes soft deleted)
  * @param type - Filter by type ('client', 'supplier', or 'all')
  */
 export const getCustomers = async (type: 'all' | 'client' | 'supplier' = 'all'): Promise<Customer[]> => {
   try {
-    let query = supabase.from('customers').select('*').order('created_at', { ascending: false });
+    let query = supabase
+      .from('customers')
+      .select('*')
+      .is('deleted_at', null)  // Exclude soft deleted records
+      .order('created_at', { ascending: false });
 
     if (type !== 'all') {
       query = query.eq('type', type);
@@ -129,20 +133,24 @@ export const updateCustomer = async (id: string, updates: Partial<Customer>): Pr
 };
 
 /**
- * Delete customer
+ * Delete customer (Soft Delete)
  */
 export const deleteCustomer = async (id: string): Promise<boolean> => {
   try {
-    const { error } = await supabase.from('customers').delete().eq('id', id);
+    // Soft delete - set deleted_at timestamp instead of actual deletion
+    const { error } = await supabase
+      .from('customers')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
 
     if (error) {
-      console.error('Error deleting customer:', error);
+      console.error('Error soft deleting customer:', error);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.error('Exception deleting customer:', err);
+    console.error('Exception soft deleting customer:', err);
     return false;
   }
 };

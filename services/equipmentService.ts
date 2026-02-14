@@ -16,7 +16,11 @@ export const getEquipment = async (
   statusFilter?: EquipmentStatus
 ): Promise<Equipment[]> => {
   try {
-    let query = supabase.from('equipment').select('*').order('created_at', { ascending: false });
+    let query = supabase
+      .from('equipment')
+      .select('*')
+      .is('deleted_at', null)  // Exclude soft deleted records
+      .order('created_at', { ascending: false });
 
     if (categoryFilter && categoryFilter !== 'all') {
       query = query.eq('category', categoryFilter);
@@ -205,20 +209,24 @@ export const bulkUpdateEquipmentStatus = async (
 };
 
 /**
- * Delete equipment
+ * Delete equipment (Soft Delete)
  */
 export const deleteEquipment = async (id: string): Promise<boolean> => {
   try {
-    const { error } = await supabase.from('equipment').delete().eq('id', id);
+    // Soft delete - set deleted_at timestamp instead of actual deletion
+    const { error } = await supabase
+      .from('equipment')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
 
     if (error) {
-      console.error('Error deleting equipment:', error);
+      console.error('Error soft deleting equipment:', error);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.error('Exception deleting equipment:', err);
+    console.error('Exception soft deleting equipment:', err);
     return false;
   }
 };

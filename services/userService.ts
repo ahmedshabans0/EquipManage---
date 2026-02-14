@@ -14,6 +14,7 @@ export const getUsers = async (): Promise<User[]> => {
     const { data, error } = await supabase
       .from('users')
       .select('*')
+      .is('deleted_at', null)  // Exclude soft deleted users
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -115,20 +116,24 @@ export const updateUser = async (id: string, updates: Partial<User>): Promise<Us
 };
 
 /**
- * Delete user
+ * Delete user (Soft Delete)
  */
 export const deleteUser = async (id: string): Promise<boolean> => {
   try {
-    const { error } = await supabase.from('users').delete().eq('id', id);
+    // Soft delete - set deleted_at timestamp instead of actual deletion
+    const { error } = await supabase
+      .from('users')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
 
     if (error) {
-      console.error('Error deleting user:', error);
+      console.error('Error soft deleting user:', error);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.error('Exception deleting user:', err);
+    console.error('Exception soft deleting user:', err);
     return false;
   }
 };
