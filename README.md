@@ -1,20 +1,55 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
+# 🚀 EquipManage  
+### Smart Equipment Rental Management System  
+
+![App Preview](./screenshot.png)
+
 </div>
 
-# Run and deploy your AI Studio app
+---
 
-This contains everything you need to run your app locally.
+## 📌 Overview
 
-View your app in AI Studio: https://ai.studio/apps/drive/1xDmxAJEJxr9aYWSkJ2ktR_0g5ngRCu5Z
+EquipManage is a modern web-based system designed to manage equipment rental businesses efficiently.
 
-## Run Locally
+The system helps track equipment availability, manage customers, monitor rental activity, and calculate business performance — all in one place.
 
-**Prerequisites:**  Node.js
+Built with performance, simplicity, and scalability in mind.
 
+---
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## ✨ Core Features
+
+- 📦 Equipment Management (Add / Edit / Delete / Status Tracking)
+- 👥 Customer Management
+- 📅 Rental Tracking System
+- 💰 Daily & Total Income Overview
+- 🔐 Secure Authentication
+- ☁️ Cloud Database Integration (Supabase)
+- ⚡ Fast & Responsive Interface
+
+---
+
+## 🛠 Tech Stack
+
+- React + TypeScript
+- Supabase (Database & Authentication)
+- Vercel (Deployment)
+- GitHub (Version Control)
+
+---
+
+## 🌐 Live Demo
+
+🔗 **Live Version:**  
+PASTE_YOUR_VERCEL_LINK_HERE
+
+---
+
+## 📦 Installation (Developer Mode)
+
+Clone the repository:
+
+```bash
+git clone https://github.com/ahmedshabans0/EquipManage---
